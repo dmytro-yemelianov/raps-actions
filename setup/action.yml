@@ -23,9 +23,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.version }}" = "latest" ]; then
-          npm install -g @APS/raps
+          npm install -g @dmytro-yemelianov/raps-cli
         else
-          npm install -g @APS/raps@${{ inputs.version }}
+          npm install -g @dmytro-yemelianov/raps-cli@${{ inputs.version }}
         fi
         echo "RAPS $(raps --version) installed"
 
