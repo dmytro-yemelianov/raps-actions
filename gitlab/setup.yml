@@ -1,0 +1,30 @@
+# RAPS Setup — GitLab CI Template
+#
+# Installs RAPS CLI and configures APS authentication.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/setup.yml'
+#
+#   my-job:
+#     extends: .raps-setup
+#     script:
+#       - raps bucket list
+#
+# Required CI/CD variables:
+#   APS_CLIENT_ID      — APS OAuth Client ID
+#   APS_CLIENT_SECRET  — APS OAuth Client Secret
+#
+# Optional variables:
+#   RAPS_VERSION       — Version to install (default: latest)
+
+.raps-setup:
+  image: ubuntu:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq curl xz-utils > /dev/null
+    - export RAPS_VERSION="${RAPS_VERSION:-latest}"
+    - export RAPS_NO_MODIFY_PATH=1
+    - curl -fsSL https://raw.githubusercontent.com/dmytro-yemelianov/raps/main/install.sh | bash
+    - export PATH="$HOME/.raps/bin:$PATH"
+    - raps auth test --output json
+    - echo "RAPS $(raps --version | grep -o 'version [^ ]*' | head -1) installed and authenticated"

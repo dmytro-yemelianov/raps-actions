@@ -1,0 +1,57 @@
+# RAPS Translate — GitLab CI Template
+#
+# Translates models via Autodesk Model Derivative API.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/setup.yml'
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/translate.yml'
+#
+#   translate-model:
+#     extends: .raps-translate
+#     variables:
+#       RAPS_URN: "dXJuOmFkc2sub..."
+#       RAPS_TIMEOUT: "30m"
+#
+# Required variables:
+#   RAPS_URN          — URN of the object to translate
+#
+# Optional variables:
+#   RAPS_WAIT         — Wait for translation to complete (default: true)
+#   RAPS_TIMEOUT      — Maximum wait time (default: 60m)
+#   RAPS_DOWNLOAD     — Download derivatives after translation (default: false)
+#   RAPS_OUTPUT_DIR   — Directory to download derivatives to (default: ./derivatives)
+
+.raps-translate:
+  extends: .raps-setup
+  script:
+    - raps translate start "$RAPS_URN"
+    - |
+      if [ "${RAPS_WAIT:-true}" = "true" ]; then
+        TIMEOUT="${RAPS_TIMEOUT:-60m}"
+        DEADLINE=$((SECONDS + $(echo "$TIMEOUT" | sed 's/m/*60/;s/h/*3600/;s/s//' | bc)))
+        STATUS="inprogress"
+        while [ "$STATUS" = "inprogress" ] && [ $SECONDS -lt $DEADLINE ]; do
+          sleep 15
+          OUTPUT=$(raps translate status "$RAPS_URN" --output json 2>/dev/null || true)
+          STATUS=$(echo "$OUTPUT" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "inprogress")
+          echo "Translation status: $STATUS"
+        done
+
+        if [ "$STATUS" = "success" ]; then
+          echo "Translation completed successfully"
+        elif [ $SECONDS -ge $DEADLINE ]; then
+          echo "WARNING: Translation timed out after $TIMEOUT"
+          exit 1
+        else
+          echo "ERROR: Translation failed with status: $STATUS"
+          exit 1
+        fi
+      fi
+    - |
+      if [ "${RAPS_DOWNLOAD:-false}" = "true" ] && [ "${STATUS:-}" = "success" ]; then
+        OUTPUT_DIR="${RAPS_OUTPUT_DIR:-./derivatives}"
+        mkdir -p "$OUTPUT_DIR"
+        raps translate download "$RAPS_URN" --output "$OUTPUT_DIR"
+        echo "Derivatives downloaded to $OUTPUT_DIR"
+      fi

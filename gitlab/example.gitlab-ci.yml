@@ -1,0 +1,53 @@
+# Example: RAPS GitLab CI Pipeline
+#
+# This example demonstrates using all 4 RAPS templates to:
+# 1. Upload a model to Autodesk OSS
+# 2. Translate it via Model Derivative API
+# 3. Run a RAPS pipeline file
+#
+# Prerequisites:
+#   Set these CI/CD variables in GitLab (Settings > CI/CD > Variables):
+#   - APS_CLIENT_ID
+#   - APS_CLIENT_SECRET
+
+include:
+  - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/setup.yml'
+  - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/pipeline.yml'
+  - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/upload.yml'
+  - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/translate.yml'
+
+stages:
+  - upload
+  - translate
+  - pipeline
+
+# Upload models to OSS
+upload-models:
+  stage: upload
+  extends: .raps-upload
+  variables:
+    RAPS_BUCKET: my-project-models
+    RAPS_FILES: "models/*.rvt"
+    RAPS_CREATE_BUCKET: "true"
+    RAPS_BUCKET_POLICY: transient
+
+# Translate a specific model
+translate-model:
+  stage: translate
+  extends: .raps-translate
+  variables:
+    RAPS_URN: "$MODEL_URN"
+    RAPS_TIMEOUT: "30m"
+    RAPS_DOWNLOAD: "true"
+    RAPS_OUTPUT_DIR: "./output"
+  artifacts:
+    paths:
+      - output/
+
+# Run a custom pipeline
+run-pipeline:
+  stage: pipeline
+  extends: .raps-pipeline
+  variables:
+    RAPS_PIPELINE_FILE: raps-pipeline.yaml
+    RAPS_DRY_RUN: "false"

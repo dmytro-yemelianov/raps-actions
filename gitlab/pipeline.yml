@@ -1,0 +1,41 @@
+# RAPS Pipeline — GitLab CI Template
+#
+# Validates and runs a RAPS pipeline file.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/setup.yml'
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/pipeline.yml'
+#
+#   run-pipeline:
+#     extends: .raps-pipeline
+#     variables:
+#       RAPS_PIPELINE_FILE: pipeline.yaml
+#       RAPS_DRY_RUN: "true"
+#
+# Required variables:
+#   RAPS_PIPELINE_FILE  — Path to pipeline YAML/JSON file
+#
+# Optional variables:
+#   RAPS_DRY_RUN        — Preview without executing (default: false)
+#   RAPS_IGNORE_FAILURE — Continue on step failures (default: false)
+#   RAPS_VARIABLES      — Pipeline variables, key=value one per line
+
+.raps-pipeline:
+  extends: .raps-setup
+  script:
+    - raps pipeline validate "$RAPS_PIPELINE_FILE"
+    - |
+      ARGS="pipeline run $RAPS_PIPELINE_FILE"
+      if [ "${RAPS_DRY_RUN:-false}" = "true" ]; then
+        ARGS="$ARGS --dry-run"
+      fi
+      if [ "${RAPS_IGNORE_FAILURE:-false}" = "true" ]; then
+        ARGS="$ARGS --ignore-failure"
+      fi
+      if [ -n "${RAPS_VARIABLES:-}" ]; then
+        echo "$RAPS_VARIABLES" | while IFS='=' read -r key value; do
+          [ -n "$key" ] && export "RAPS_VAR_${key}=${value}"
+        done
+      fi
+      raps $ARGS

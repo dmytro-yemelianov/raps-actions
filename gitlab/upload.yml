@@ -1,0 +1,45 @@
+# RAPS Upload — GitLab CI Template
+#
+# Uploads files to Autodesk OSS buckets.
+#
+# Usage:
+#   include:
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/setup.yml'
+#     - remote: 'https://raw.githubusercontent.com/dmytro-yemelianov/raps-actions/v1/gitlab/upload.yml'
+#
+#   upload-models:
+#     extends: .raps-upload
+#     variables:
+#       RAPS_BUCKET: my-bucket
+#       RAPS_FILES: "*.rvt"
+#       RAPS_CREATE_BUCKET: "true"
+#
+# Required variables:
+#   RAPS_BUCKET         — OSS bucket key
+#   RAPS_FILES          — File path or glob pattern to upload
+#
+# Optional variables:
+#   RAPS_CREATE_BUCKET  — Create bucket if it doesn't exist (default: false)
+#   RAPS_BUCKET_POLICY  — Bucket retention policy: transient, temporary, persistent (default: transient)
+
+.raps-upload:
+  extends: .raps-setup
+  script:
+    - |
+      if [ "${RAPS_CREATE_BUCKET:-false}" = "true" ]; then
+        raps bucket info "$RAPS_BUCKET" 2>/dev/null || \
+        raps bucket create --key "$RAPS_BUCKET" --policy "${RAPS_BUCKET_POLICY:-transient}"
+      fi
+    - |
+      COUNT=0
+      LAST_URN=""
+      for file in $RAPS_FILES; do
+        if [ -f "$file" ]; then
+          echo "Uploading: $file"
+          OUTPUT=$(raps object upload "$RAPS_BUCKET" "$file" --output json 2>/dev/null)
+          LAST_URN=$(echo "$OUTPUT" | grep -o '"urn":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+          COUNT=$((COUNT + 1))
+        fi
+      done
+      echo "Uploaded ${COUNT} file(s)"
+      [ -n "$LAST_URN" ] && echo "Last URN: $LAST_URN"
