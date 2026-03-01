@@ -21,13 +21,12 @@ runs:
   steps:
     - name: Install RAPS
       shell: bash
+      env:
+        RAPS_VERSION: ${{ inputs.version }}
+        RAPS_NO_MODIFY_PATH: "1"
       run: |
-        if [ "${{ inputs.version }}" = "latest" ]; then
-          npm install -g @dmytro-yemelianov/raps-cli
-        else
-          npm install -g @dmytro-yemelianov/raps-cli@${{ inputs.version }}
-        fi
-        echo "RAPS $(raps --version) installed"
+        curl -fsSL https://raw.githubusercontent.com/dmytro-yemelianov/raps/main/install.sh | bash
+        echo "${HOME}/.raps/bin" >> "$GITHUB_PATH"
 
     - name: Configure authentication
       shell: bash
