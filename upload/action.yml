@@ -1,0 +1,58 @@
+name: "RAPS Upload"
+description: "Upload files to Autodesk OSS buckets"
+branding:
+  icon: "upload-cloud"
+  color: "orange"
+
+inputs:
+  bucket:
+    description: "OSS bucket key"
+    required: true
+  files:
+    description: "File path or glob pattern to upload"
+    required: true
+  create-bucket:
+    description: "Create bucket if it doesn't exist"
+    required: false
+    default: "false"
+  bucket-policy:
+    description: "Bucket retention policy (transient, temporary, persistent)"
+    required: false
+    default: "transient"
+
+outputs:
+  urn:
+    description: "URN of the last uploaded object"
+    value: ${{ steps.upload.outputs.urn }}
+  object-count:
+    description: "Number of objects uploaded"
+    value: ${{ steps.upload.outputs.count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create bucket if needed
+      if: inputs.create-bucket == 'true'
+      shell: bash
+      run: |
+        raps bucket info "${{ inputs.bucket }}" 2>/dev/null || \
+        raps bucket create --key "${{ inputs.bucket }}" --policy "${{ inputs.bucket-policy }}"
+
+    - name: Upload files
+      id: upload
+      shell: bash
+      run: |
+        COUNT=0
+        LAST_URN=""
+        for file in ${{ inputs.files }}; do
+          if [ -f "$file" ]; then
+            echo "Uploading: $file"
+            OUTPUT=$(raps object upload "${{ inputs.bucket }}" "$file" --output json 2>/dev/null)
+            LAST_URN=$(echo "$OUTPUT" | grep -o '"urn":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+            COUNT=$((COUNT + 1))
+          fi
+        done
+
+        echo "urn=${LAST_URN}" >> "$GITHUB_OUTPUT"
+        echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+        echo "Uploaded ${COUNT} file(s)"

@@ -1,0 +1,71 @@
+name: "RAPS Translate"
+description: "Translate models via Autodesk Model Derivative API"
+branding:
+  icon: "refresh-cw"
+  color: "orange"
+
+inputs:
+  urn:
+    description: "URN of the object to translate"
+    required: true
+  wait:
+    description: "Wait for translation to complete"
+    required: false
+    default: "true"
+  timeout:
+    description: "Maximum wait time (e.g., 60m)"
+    required: false
+    default: "60m"
+  download:
+    description: "Download derivatives after translation"
+    required: false
+    default: "false"
+  output-dir:
+    description: "Directory to download derivatives to"
+    required: false
+    default: "./derivatives"
+
+outputs:
+  status:
+    description: "Translation status (success, failed, timeout)"
+    value: ${{ steps.translate.outputs.status }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Start translation
+      shell: bash
+      run: raps translate start "${{ inputs.urn }}"
+
+    - name: Wait for translation
+      id: translate
+      if: inputs.wait == 'true'
+      shell: bash
+      run: |
+        DEADLINE=$((SECONDS + $(echo "${{ inputs.timeout }}" | sed 's/m/*60/;s/h/*3600/;s/s//' | bc)))
+        STATUS="inprogress"
+        while [ "$STATUS" = "inprogress" ] && [ $SECONDS -lt $DEADLINE ]; do
+          sleep 15
+          OUTPUT=$(raps translate status "${{ inputs.urn }}" --output json 2>/dev/null || true)
+          STATUS=$(echo "$OUTPUT" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "inprogress")
+          echo "Translation status: $STATUS"
+        done
+
+        if [ "$STATUS" = "success" ]; then
+          echo "status=success" >> "$GITHUB_OUTPUT"
+        elif [ $SECONDS -ge $DEADLINE ]; then
+          echo "status=timeout" >> "$GITHUB_OUTPUT"
+          echo "::warning::Translation timed out after ${{ inputs.timeout }}"
+        else
+          echo "status=failed" >> "$GITHUB_OUTPUT"
+          echo "::error::Translation failed with status: $STATUS"
+          exit 1
+        fi
+
+    - name: Download derivatives
+      if: inputs.download == 'true' && steps.translate.outputs.status == 'success'
+      shell: bash
+      run: |
+        mkdir -p "${{ inputs.output-dir }}"
+        raps translate download "${{ inputs.urn }}" --output "${{ inputs.output-dir }}"
+        echo "Derivatives downloaded to ${{ inputs.output-dir }}"

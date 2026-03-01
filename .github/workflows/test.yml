@@ -1,0 +1,43 @@
+name: Test Actions
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-setup:
+    name: Test Setup Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./setup
+        with:
+          client-id: ${{ secrets.APS_CLIENT_ID }}
+          client-secret: ${{ secrets.APS_CLIENT_SECRET }}
+
+      - name: Verify RAPS is installed
+        run: |
+          raps --version
+          raps auth status --output json
+
+  test-pipeline-dry-run:
+    name: Test Pipeline Dry Run
+    runs-on: ubuntu-latest
+    needs: test-setup
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./setup
+        with:
+          client-id: ${{ secrets.APS_CLIENT_ID }}
+          client-secret: ${{ secrets.APS_CLIENT_SECRET }}
+
+      - name: Create test pipeline
+        run: raps pipeline sample --out-file test-pipeline.yaml
+
+      - uses: ./pipeline
+        with:
+          file: test-pipeline.yaml
+          dry-run: "true"

@@ -1,0 +1,39 @@
+name: "RAPS Setup"
+description: "Install RAPS CLI and configure APS authentication"
+branding:
+  icon: "terminal"
+  color: "orange"
+
+inputs:
+  version:
+    description: "RAPS version to install (e.g., 4.15.0 or latest)"
+    required: false
+    default: "latest"
+  client-id:
+    description: "APS Client ID"
+    required: true
+  client-secret:
+    description: "APS Client Secret"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install RAPS
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          npm install -g @APS/raps
+        else
+          npm install -g @APS/raps@${{ inputs.version }}
+        fi
+        echo "RAPS $(raps --version) installed"
+
+    - name: Configure authentication
+      shell: bash
+      env:
+        APS_CLIENT_ID: ${{ inputs.client-id }}
+        APS_CLIENT_SECRET: ${{ inputs.client-secret }}
+      run: |
+        raps auth test --output json
+        echo "APS authentication verified"

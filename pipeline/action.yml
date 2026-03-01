@@ -1,0 +1,49 @@
+name: "RAPS Pipeline"
+description: "Run a RAPS pipeline file"
+branding:
+  icon: "play"
+  color: "orange"
+
+inputs:
+  file:
+    description: "Path to pipeline YAML/JSON file"
+    required: true
+  variables:
+    description: "Pipeline variables (key=value, one per line)"
+    required: false
+    default: ""
+  dry-run:
+    description: "Preview pipeline without executing"
+    required: false
+    default: "false"
+  ignore-failure:
+    description: "Continue on step failures"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate pipeline
+      shell: bash
+      run: raps pipeline validate "${{ inputs.file }}"
+
+    - name: Run pipeline
+      shell: bash
+      run: |
+        ARGS="pipeline run ${{ inputs.file }}"
+        if [ "${{ inputs.dry-run }}" = "true" ]; then
+          ARGS="$ARGS --dry-run"
+        fi
+        if [ "${{ inputs.ignore-failure }}" = "true" ]; then
+          ARGS="$ARGS --ignore-failure"
+        fi
+
+        # Export variables as env vars for RAPS
+        if [ -n "${{ inputs.variables }}" ]; then
+          while IFS='=' read -r key value; do
+            [ -n "$key" ] && export "RAPS_VAR_${key}=${value}"
+          done <<< "${{ inputs.variables }}"
+        fi
+
+        raps $ARGS
